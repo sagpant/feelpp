@@ -34,6 +34,11 @@
 #include <feel/feelcore/environment.hpp>
 #include <feel/feelcore/worldcomm.hpp>
 
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/set.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/split_member.hpp>
+
 namespace Feel
 {
 
@@ -46,6 +51,7 @@ class DataMap;
  */
 class IndexSplit : public std::vector<std::vector<size_type> >
 {
+    friend class boost::serialization::access;
     typedef IndexSplit self_type;
     typedef boost::shared_ptr<self_type> self_ptrtype;
     typedef std::vector<std::vector<size_type> > super_type;
@@ -92,7 +98,7 @@ class IndexSplit : public std::vector<std::vector<size_type> >
     void showMe() const;
 
     size_type firstIndex( int i ) const { return M_firstIndex[i]; }
-    void setFirstIndex( int i,size_type s ) { M_firstIndex[i] = s; }
+    void setFirstIndex( int i, size_type s ) { M_firstIndex[i] = s; }
     size_type lastIndex( int i ) const { return M_lastIndex[i]; }
     void setLastIndex( int i,size_type s ) { M_lastIndex[i] = s; }
     size_type nIndex( int i ) const { return M_nIndex[i]; }
@@ -114,6 +120,103 @@ class IndexSplit : public std::vector<std::vector<size_type> >
 
     self_ptrtype applyFieldsDef( FieldsDef const& fieldsDef ) const;
 
+    template<class Archive>
+    void save(Archive & ar, const unsigned int version) const
+        {
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] save" << std::endl;
+            size_type firstIndex_size = this->M_firstIndex.size();
+            ar << BOOST_SERIALIZATION_NVP( firstIndex_size );
+            for(int i=0; i<firstIndex_size; i++)
+            {
+                size_type firstIndex_i = this->firstIndex( i );
+                ar << BOOST_SERIALIZATION_NVP( firstIndex_i );
+            }
+            size_type lastIndex_size = this->M_lastIndex.size();
+            ar << BOOST_SERIALIZATION_NVP( lastIndex_size );
+            for(int i=0; i<lastIndex_size; i++)
+            {
+                size_type lastIndex_i = this->lastIndex( i );
+                ar << BOOST_SERIALIZATION_NVP( lastIndex_i );
+            }
+            size_type nIndex_size = this->M_nIndex.size();
+            ar << BOOST_SERIALIZATION_NVP( nIndex_size );
+            for(int i=0; i<nIndex_size; i++)
+            {
+                size_type nIndex_i = this->nIndex( i );
+                ar << BOOST_SERIALIZATION_NVP( nIndex_i );
+            }
+            size_type nIndexForSmallerRankId_size = this->M_nIndexForSmallerRankId.size();
+            ar << BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_size );
+            for(int i=0; i<nIndexForSmallerRankId_size; i++)
+            {
+                size_type nIndexForSmallerRankId_i = this->nIndexForSmallerRankId( i );
+                ar << BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_i );
+            }
+            size_type tag_size = this->M_tag.size();
+            ar << BOOST_SERIALIZATION_NVP( tag_size );
+            for(int i=0; i<tag_size; i++)
+            {
+                size_type tag_i = this->tag( i );
+                ar << BOOST_SERIALIZATION_NVP( tag_i );
+            }
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] save ok" << std::endl;
+        }
+    template<class Archive>
+    void load(Archive & ar, const unsigned int version)
+        {
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] load" << std::endl;
+            size_type firstIndex_size;
+            ar >> BOOST_SERIALIZATION_NVP( firstIndex_size );
+            this->M_firstIndex.resize( firstIndex_size );
+            for(int i=0; i<firstIndex_size; i++)
+            {
+                size_type firstIndex_i;
+                ar >> BOOST_SERIALIZATION_NVP( firstIndex_i );
+                this->setFirstIndex( i, firstIndex_i );
+            }
+
+            size_type lastIndex_size;
+            ar >> BOOST_SERIALIZATION_NVP( lastIndex_size );
+            this->M_lastIndex.resize( lastIndex_size );
+            for(int i=0; i<lastIndex_size; i++)
+            {
+                size_type lastIndex_i;
+                ar >> BOOST_SERIALIZATION_NVP( lastIndex_i );
+                this->setLastIndex( i, lastIndex_i );
+            }
+
+            size_type nIndex_size;
+            ar >> BOOST_SERIALIZATION_NVP( nIndex_size );
+            this->M_nIndex.resize( nIndex_size );
+            for(int i=0; i<nIndex_size; i++)
+            {
+                size_type nIndex_i;
+                ar >> BOOST_SERIALIZATION_NVP( nIndex_i );
+                this->setNIndex( i, nIndex_i );
+            }
+
+            size_type nIndexForSmallerRankId_size;
+            ar >> BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_size );
+            this->M_nIndexForSmallerRankId.resize( nIndexForSmallerRankId_size );
+            for(int i=0; i<nIndexForSmallerRankId_size; i++)
+            {
+                size_type nIndexForSmallerRankId_i;
+                ar >> BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_i );
+                this->setNIndexForSmallerRankId(i, nIndexForSmallerRankId_i );
+            }
+
+            size_type tag_size;
+            ar >> BOOST_SERIALIZATION_NVP( tag_size );
+            this->M_tag.resize( tag_size );
+            for(int i=0; i<tag_size; i++)
+            {
+                size_type tag_i;
+                ar >> BOOST_SERIALIZATION_NVP( tag_i );
+                this->setTag( i, tag_i );
+            }
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] load ok" << std::endl;
+        }
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 private :
 
@@ -134,6 +237,9 @@ class DataMap
 {
 
 public:
+    friend class boost::serialization::access;
+
+    typedef DataMap self_type;
     typedef IndexSplit indexsplit_type;
     typedef boost::shared_ptr<indexsplit_type> indexsplit_ptrtype;
 
@@ -494,6 +600,7 @@ public:
     }
 
     std::map<size_type, std::set<rank_type> > const& activeDofSharedOnCluster() const { return M_activeDofSharedOnCluster; }
+    std::set<rank_type> const& activeDofSharedOnCluster(size_type j) const { return M_activeDofSharedOnCluster.at(j); }
     void setActiveDofSharedOnCluster(size_type j, std::set<rank_type> const& sharedRank ) { M_activeDofSharedOnCluster[j]=sharedRank; }
 
 
@@ -501,6 +608,10 @@ public:
     bool closed() const
     {
         return M_closed;
+    }
+    void setIsClosed( bool b )
+    {
+        M_closed = b;
     }
 
     /**
@@ -568,10 +679,12 @@ public:
      * \return the dofIdToContainerId mapping (from functionspace id to container id with global process numbering)
      */
     std::vector<size_type> const& dofIdToContainerId( int tag ) const { return M_dofIdToContainerId[tag]; }
+    void setDofIdToContainerId( int tag, std::vector<size_type> vec ) { M_dofIdToContainerId[tag] = vec; }
     /**
      * \return global process index in container from dof id
      */
     size_type dofIdToContainerId( int tag,size_type gpdof ) const { return M_dofIdToContainerId[tag][gpdof]; }
+
 
     /**
      * \return the indexsplit description
@@ -621,6 +734,152 @@ public:
 
     //@}
 
+    template<class Archive>
+    void save(Archive & ar, const unsigned int version) const
+        {
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] save" << std::endl;
+            bool is_closed = this->closed();
+            ar << BOOST_SERIALIZATION_NVP( is_closed );
+            size_type n_dofs = this->nDof();
+            ar << BOOST_SERIALIZATION_NVP( n_dofs );
+            for( int i=0; i<Environment::worldComm().size(); i++ )
+            {
+                size_type n_localWithoutGhost_df;
+                n_localWithoutGhost_df = this->nLocalDofWithoutGhost( i );
+                ar << BOOST_SERIALIZATION_NVP( n_localWithoutGhost_df );
+                size_type n_localWithGhost_df;
+                n_localWithGhost_df = this->nLocalDofWithGhost( i );
+                ar << BOOST_SERIALIZATION_NVP( n_localWithGhost_df );
+                size_type first_df;
+                first_df = this->firstDof( i );
+                ar << BOOST_SERIALIZATION_NVP( first_df );
+                size_type last_df;
+                last_df = this->lastDof( i );
+                ar << BOOST_SERIALIZATION_NVP( last_df );
+                size_type first_df_globalcluster;
+                first_df_globalcluster = this->firstDofGlobalCluster( i );
+                ar << BOOST_SERIALIZATION_NVP( first_df_globalcluster );
+                size_type last_df_globalcluster;
+                last_df_globalcluster = this->lastDofGlobalCluster( i );
+                ar << BOOST_SERIALIZATION_NVP( last_df_globalcluster );
+            }
+            std::vector<size_type> mapGlobalProcessToGlobalCluster;
+            mapGlobalProcessToGlobalCluster = this->mapGlobalProcessToGlobalCluster();
+            ar << BOOST_SERIALIZATION_NVP( mapGlobalProcessToGlobalCluster );
+            std::set<rank_type> neighbor_processors;
+            neighbor_processors = this->neighborSubdomains();
+            ar << BOOST_SERIALIZATION_NVP( neighbor_processors );
+
+            std::map< size_type, std::set<rank_type> >::const_iterator it = this->activeDofSharedOnCluster().begin();
+            for( ; it!=this->activeDofSharedOnCluster().end(); it++ )
+            {
+                size_type activeDofSharedOnCluster_first = (*it).first;
+                ar << BOOST_SERIALIZATION_NVP( activeDofSharedOnCluster_first );
+                std::set<rank_type> activeDofSharedOnCluster_second = (*it).second;
+                ar << BOOST_SERIALIZATION_NVP( activeDofSharedOnCluster_second );
+            }
+
+            indexsplit_ptrtype indexSplit, indexSplitWithComponents;
+            indexSplit = this->indexSplit();
+            indexSplitWithComponents = this->indexSplitWithComponents();
+            ar << BOOST_SERIALIZATION_NVP( indexSplit );
+            ar << BOOST_SERIALIZATION_NVP( indexSplitWithComponents );
+
+            size_type dofIdToContainerId_size = this->numberOfDofIdToContainerId();
+            ar << BOOST_SERIALIZATION_NVP( dofIdToContainerId_size );
+            for(int i=0; i<dofIdToContainerId_size; i++)
+            {
+                std::vector<size_type> dofIdToContainerId_i = dofIdToContainerId( i );
+                ar << BOOST_SERIALIZATION_NVP( dofIdToContainerId_i );
+            }
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] save ok" << std::endl;
+
+        }
+    template<class Archive>
+    void load(Archive & ar, const unsigned int version)
+        {
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load" << std::endl;
+            bool is_closed;
+            ar >> BOOST_SERIALIZATION_NVP( is_closed );
+            this->setIsClosed( is_closed );
+            size_type n_dofs;
+            ar >> BOOST_SERIALIZATION_NVP( n_dofs );
+            this->setNDof( n_dofs );
+
+            //M_n_localWithoutGhost_df.size();
+            for( int i=0; i<Environment::worldComm().size(); i++ )
+            {
+                size_type n_localWithoutGhost_df;
+                ar >> BOOST_SERIALIZATION_NVP( n_localWithoutGhost_df );
+                this->setNLocalDofWithoutGhost( i, n_localWithoutGhost_df );
+                size_type n_localWithGhost_df;
+                ar >> BOOST_SERIALIZATION_NVP( n_localWithGhost_df );
+                this->setNLocalDofWithoutGhost( i, n_localWithGhost_df );
+                size_type first_df;
+                ar >> BOOST_SERIALIZATION_NVP( first_df );
+                this->setFirstDof( i, first_df );
+                size_type last_df;
+                ar >> BOOST_SERIALIZATION_NVP( last_df );
+                this->setLastDof( i, last_df );
+                size_type first_df_globalcluster;
+                ar >> BOOST_SERIALIZATION_NVP( first_df_globalcluster );
+                this->setFirstDofGlobalCluster( i, first_df_globalcluster );
+                size_type last_df_globalcluster;
+                ar >> BOOST_SERIALIZATION_NVP( last_df_globalcluster );
+                this->setLastDofGlobalCluster( i, last_df_globalcluster );
+            }
+
+            //std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 1" << std::endl;
+            std::vector<size_type> mapGlobalProcessToGlobalCluster;
+            ar >> BOOST_SERIALIZATION_NVP( mapGlobalProcessToGlobalCluster );
+            this->setMapGlobalProcessToGlobalCluster( mapGlobalProcessToGlobalCluster );
+            //std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 2" << std::endl;
+            std::set<rank_type> neighbor_processors;
+            ar >> BOOST_SERIALIZATION_NVP( neighbor_processors );
+            this->setNeighborSubdomains( neighbor_processors );
+
+            std::map< size_type, std::set<rank_type> >::const_iterator it = this->activeDofSharedOnCluster().begin();
+            //std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 3" << std::endl;
+            for( ; it!=this->activeDofSharedOnCluster().end(); it++ )
+            {
+                size_type activeDofSharedOnCluster_first;
+                //ar >> BOOST_SERIALIZATION_NVP( activeDofSharedOnCluster_first );
+                std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 4" << std::endl;
+                std::set<rank_type> activeDofSharedOnCluster_second;
+                ar >> BOOST_SERIALIZATION_NVP( activeDofSharedOnCluster_second );
+                this->setActiveDofSharedOnCluster(activeDofSharedOnCluster_first,
+                                                  activeDofSharedOnCluster_second);
+                //std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 5" << std::endl;
+            }
+
+            indexsplit_ptrtype indexSplit, indexSplitWithComponents;
+            ar >> BOOST_SERIALIZATION_NVP( indexSplit );
+            this->setIndexSplit( indexSplit );
+            ar >> BOOST_SERIALIZATION_NVP( indexSplitWithComponents );
+            this->setIndexSplitWithComponents( indexSplitWithComponents );
+            //std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load check 6" << std::endl;
+
+            size_type dofIdToContainerId_size;
+            ar >> BOOST_SERIALIZATION_NVP( dofIdToContainerId_size );
+            M_dofIdToContainerId.resize( dofIdToContainerId_size );
+            for(int i=0; i<dofIdToContainerId_size; i++)
+            {
+                std::vector<size_type> dofIdToContainerId_i;
+                ar >> BOOST_SERIALIZATION_NVP( dofIdToContainerId_i );
+                this->setDofIdToContainerId(i, dofIdToContainerId_i );
+            }
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load ok" << std::endl;
+        }
+#if 0
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version) const
+        {
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] serialize" << std::endl;
+            boost::serialization::split_member(ar, *this, version);
+            std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] serialize ok" << std::endl;
+        }
+#endif
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 
 protected:
@@ -692,6 +951,7 @@ protected:
 
     //! dof global process id (space def) to container global process id (identity with non composite space)
     std::vector<std::vector<size_type> > M_dofIdToContainerId;
+
 private:
 
 };
@@ -702,4 +962,5 @@ using datamap_ptrtype = boost::shared_ptr<datamap_t>;
 using datamap_ptr_t = datamap_ptrtype;
 
 } // Feel
+
 #endif /* __DataMap_H */

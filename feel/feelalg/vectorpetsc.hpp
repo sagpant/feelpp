@@ -722,6 +722,7 @@ public:
     /**
      * Serialization for PETSc VECSEQ
      */
+
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version) const
     {
@@ -741,6 +742,7 @@ public:
 
         VecRestoreArray(this->vec(), &array);
     }
+    BOOST_SERIALIZATION_SHARED_PTR( VectorPetsc<T> )
     //@}
 
 
@@ -924,7 +926,6 @@ public:
     size_type localSize() const;
 
     void duplicateFromOtherPartition( Vector<T> const& vecInput );
-
 
 private :
 
