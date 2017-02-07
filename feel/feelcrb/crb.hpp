@@ -197,6 +197,9 @@ public:
     typedef typename model_type::element_type element_type;
     typedef typename model_type::element_ptrtype element_ptrtype;
 
+    typedef typename model_type::oelement_type oelement_type;
+    typedef typename model_type::oelement_ptrtype oelement_ptrtype;
+
     typedef typename model_type::backend_type backend_type;
     typedef boost::shared_ptr<backend_type> backend_ptrtype;
     typedef typename model_type::sparse_matrix_ptrtype sparse_matrix_ptrtype;
@@ -1496,6 +1499,9 @@ protected:
     // output
     std::vector < std::vector<vectorN_type> > M_Lqm_pr;
     std::vector < std::vector<vectorN_type> > M_Lqm_du;
+    // output FE field
+    std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_pr;
+    std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_du;
 
     //initial guess
     std::vector < std::vector<vectorN_type> > M_InitialGuessV_pr;
@@ -1714,7 +1720,7 @@ CRB<TruthModelType>::offlineFixedPointPrimal(parameter_type const& mu )//, spars
             }
             else
             {
-                auto ret = M_backend_primal->solve( _matrix=Apr, _solution=u, _rhs=Rhs, _rebuild=true);
+                auto ret = M_backend_primal->solve( _matrix=Apr, _solution=u, _rhs=Rhs );
                 if  ( !ret.template get<0>() )
                     LOG(INFO)<<"[CRB] WARNING : at time "<<M_bdf_primal->time()<<" we have not converged ( nb_it : "<<ret.template get<1>()<<" and residual : "<<ret.template get<2>() <<" ) \n";
             }
@@ -1726,7 +1732,8 @@ CRB<TruthModelType>::offlineFixedPointPrimal(parameter_type const& mu )//, spars
                 increment_norm = M_model->computeNormL2( u , uold );
 
             LOG(INFO) << "iteration " << iteration << ", increment_norm = " <<  increment_norm << "\n";
-            //std::cout << "[OFFLINE] iteration " << iteration << ", increment_norm = " <<  increment_norm << "\n";
+            Feel::cout << "iteration " << iteration << ", increment_norm = " <<  increment_norm << "\n";
+
             this->offline_iterations_summary.first = iteration;
             this->offline_iterations_summary.second = increment_norm;
             iteration++;
@@ -3120,19 +3127,40 @@ CRB<TruthModelType>::offline()
         }//loop over q
 
         LOG(INFO) << "[CRB::offline] compute Lq_pr, Lq_du" << "\n";
-
+        bool outputIsFE = M_model->model()->outputIsFE(M_output_index);
         for ( size_type q = 0; q < M_model->Ql( M_output_index ); ++q )
         {
             for( size_type m = 0; m < M_model->mMaxF( M_output_index, q ); ++m )
             {
-                M_Lqm_pr[q][m].conservativeResize( M_N );
-                M_Lqm_du[q][m].conservativeResize( M_N );
-
-                for ( size_type l = 1; l <= number_of_elements_to_update; ++l )
+                if( !outputIsFE )
                 {
-                    int index = M_N-l;
-                    M_Lqm_pr[q][m]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->primalBasisElement(index) );
-                    M_Lqm_du[q][m]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->dualBasisElement(index) );
+                    M_Lqm_pr[q][m].conservativeResize( M_N );
+                    M_Lqm_du[q][m].conservativeResize( M_N );
+
+                    for ( size_type l = 1; l <= number_of_elements_to_update; ++l )
+                    {
+                        int index = M_N-l;
+                        M_Lqm_pr[q][m]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->primalBasisElement(index) );
+                        M_Lqm_du[q][m]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->dualBasisElement(index) );
+                    }
+
+                }
+                else
+                {
+                    M_Lvqm_pr[q][m].resize( M_model->model()->nDofOutputFE() );
+                    M_Lvqm_du[q][m].resize( M_model->model()->nDofOutputFE() );
+                    for(int dof=0; dof < M_model->model()->nDofOutputFE(); dof++)
+                    {
+                        M_Lvqm_pr[q][m][dof].conservativeResize( M_N );
+                        M_Lvqm_du[q][m][dof].conservativeResize( M_N );
+
+                        for ( size_type l = 1; l <= number_of_elements_to_update; ++l )
+                        {
+                            int index = M_N-l;
+                            M_Lvqm_pr[q][m][dof]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->primalBasisElement(index), dof);
+                            M_Lvqm_du[q][m][dof]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->dualBasisElement(index), dof);
+                        }
+                    }
                 }
             }//loop over m
         }//loop over q
@@ -5069,7 +5097,7 @@ CRB<TruthModelType>::fixedPointDual(  size_type N, parameter_type const& mu, std
 template<typename TruthModelType>
 typename CRB<TruthModelType>::matrix_info_tuple
 CRB<TruthModelType>::fixedPointPrimal(  size_type N, parameter_type const& mu, std::vector< vectorN_type > & uN,  std::vector<vectorN_type> & /*uNold*/,
-                                        std::vector< double > & output_vector , int K, bool print_rb_matrix, bool computeOutput ) const
+                                        std::vector< double > & output_vector, int K, bool print_rb_matrix, bool computeOutput) const
 {
     //size_type Qm = 0;
     double output = 0;
@@ -5237,20 +5265,65 @@ CRB<TruthModelType>::fixedPointPrimal(  size_type N, parameter_type const& mu, s
             }
             while ( !fixPointIsFinished );// increment > M_fixedpointIncrementTol && fi<M_fixedpointMaxIterations );
 
+            if( M_fixedpointVerbose && this->worldComm().isMasterRank() )
+                std::cout <<"[CRB::fixedPointPrimal] fixedpoint iteration " << fi << "/" << M_fixedpointMaxIterations
+                          << " last increment : " << increment << std::endl;
+
         } // nonlinear
 
+        Feel::cout << "computeOutput = " << computeOutput << std::endl;
         if ( computeOutput )
         {
-            L.setZero( N );
-            for ( size_type q = 0; q < Ql; ++q )
+            bool outputIsFE = M_model->model()->outputIsFE(M_output_index);
+            if( !outputIsFE )
             {
-                for(int m=0; m < mMaxL[q]; m++)
+                //Feel::cout << "output is not FE" << std::endl;
+                L.setZero( N );
+                for ( size_type q = 0; q < Ql; ++q )
                 {
-                    L += betaFqm[M_output_index][q][m]*M_Lqm_pr[q][m].head( N );
+                    for(int m=0; m < mMaxL[q]; m++)
+                    {
+                        L += betaFqm[M_output_index][q][m]*M_Lqm_pr[q][m].head( N );
+                    }
                 }
+                output = L.dot( uN[0] );
+                output_vector[0] = output;
             }
-            output = L.dot( uN[0] );
-            output_vector[0] = output;
+            else
+            {
+                std::cout << "Proc " << this->worldComm().globalRank() << ", output FE, ndof = "
+                          << M_model->model()->nDofOutputFE() << std::endl;
+                auto outputFE = M_model->outputFunctionSpace()->element();
+                for( int dof=0; dof<M_model->model()->nDofOutputFE(); dof++ )
+                {
+                    std::cout << "output FE, Ql = " << Ql << std::endl;
+                    L.setZero( N );
+                    for ( size_type q = 0; q < Ql; ++q ) // No processors go in this loop
+                    {
+                        std:cout << "[computeOutput] betaFqm[" << M_output_index << "][" << q << "][0] = " << betaFqm[M_output_index][q][0] << std::endl;
+                        for(int m=0; m < mMaxL[q]; m++)
+                        {
+                            L += betaFqm[M_output_index][q][m]*M_Lvqm_pr[q][m][dof].head( N );
+                        }
+                        std::cout << "[computeOutput] L( q=" << q << ") = " << L << std::endl;
+                    }
+
+                    auto output = L.dot( uN[0] );
+                    std::cout << "[computeOutput] output(" << M_model->model()->globalDofOutputFE(dof) << ") = " << output << std::endl;
+                    outputFE.set(M_model->model()->globalDofOutputFE(dof), output);
+                }
+                output_vector[0] = (outputFE.min() + outputFE.max())/2.; //Mean
+
+                std::string mu_str;
+                for ( int i=0; i<mu.size(); i++ )
+                    mu_str= mu_str + ( boost::format( "_%1%" ) %mu[i] ).str() ;
+                std::string name = "outputFE" + mu_str;
+                export_ptrtype exporter;
+                exporter = export_ptrtype( Exporter<mesh_type>::New( "OutputFE" ) );
+                exporter->step( 0 )->setMesh( M_model->outputFunctionSpace()->mesh() );
+                exporter->step( 0 )->add( name.c_str(), outputFE );
+                exporter->save();
+            }
         }
 
     }

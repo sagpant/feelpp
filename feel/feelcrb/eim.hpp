@@ -663,6 +663,7 @@ EIM<ModelType>::offline()
 
     if( M_restart )
     {
+        M_model->initializeDataStructures();
         tic();
         if( this->worldComm().isMasterRank() )
         {

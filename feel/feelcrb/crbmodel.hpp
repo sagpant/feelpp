@@ -112,10 +112,16 @@ public:
     typedef typename model_type::rbfunctionspace_type rbfunctionspace_type;
     typedef typename model_type::rbfunctionspace_ptrtype rbfunctionspace_ptrtype;
 
+    //! function space type for output FE (if specified)
+    typedef typename model_type::ospace_type ofunctionspace_type;
+    typedef boost::shared_ptr<ofunctionspace_type> ofunctionspace_ptrtype;
 
     //! element of the functionspace type
     typedef typename model_type::space_type::element_type element_type;
     typedef boost::shared_ptr<element_type> element_ptrtype;
+    typedef typename model_type::ospace_type::element_type oelement_type;
+    typedef boost::shared_ptr<oelement_type> oelement_ptrtype;
+
     typedef typename model_type::backend_type backend_type;
     typedef boost::shared_ptr<backend_type> backend_ptrtype;
     typedef typename backend_type::sparse_matrix_ptrtype sparse_matrix_ptrtype;
@@ -517,7 +523,7 @@ public:
      * \brief Returns the matrix associated with the inner product
      * used to perform the POD (parabolic case)
      */
-    sparse_matrix_ptrtype  innerProductForPod()
+    sparse_matrix_ptrtype innerProductForPod()
     {
         return M_inner_product_matrix;
         //return M_model->innerProductForPod();
@@ -525,15 +531,21 @@ public:
 
 
     //!  Returns the function space
-    functionspace_ptrtype  functionSpace() const
+    functionspace_ptrtype functionSpace() const
     {
         return M_model->functionSpace();
     }
 
     //!  Returns the reduced basis function space
-    rbfunctionspace_ptrtype  rBFunctionSpace() const
+    rbfunctionspace_ptrtype rBFunctionSpace() const
     {
         return M_model->rBFunctionSpace();
+    }
+
+    //!  Returns the function space for (eventual) FE output
+    ofunctionspace_ptrtype outputFunctionSpace() const
+    {
+        return M_model->outputFunctionSpace();
     }
 
     //! return the number of \f$\mu\f$ independent terms for the bilinear form
@@ -2394,11 +2406,14 @@ public:
      *
      * \return the vector associated with \f$F_{qm}\f$
      */
-    vector_ptrtype Fqm( uint16_type l, uint16_type q, int m ) const
+    vector_ptrtype Fqm( uint16_type l, uint16_type q, int m, int dof=0) const
     {
         if( boption(_name="crb.stock-matrices") )
         {
-            return M_Fqm[l][q][m];
+            if ( M_model->outputIsFE(l) )
+                return M_Fvqm.at(l)[q][m][dof];
+            else
+                return M_Fqm[l][q][m];
         }
         else
         {
@@ -2460,14 +2475,17 @@ public:
      *
      * \return the inner product \f$f_{qm}(\xi) = \xi^T F_{qm} \f$
      */
-    value_type Fqm( uint16_type l, uint16_type q,  uint16_type m, element_type const& xi )
+    value_type Fqm( uint16_type l, uint16_type q,  uint16_type m, element_type const& xi, int dof=0)
     {
 
         value_type result=0;
 
         if( boption(_name="crb.stock-matrices") )
         {
-            result = inner_product( *M_Fqm[l][q][m] , xi );
+            if ( M_model->outputIsFE(l) )
+                result = inner_product( *M_Fvqm[l][q][m][dof] , xi );
+            else
+                result = inner_product( *M_Fqm[l][q][m] , xi );
         }
         else
         {
@@ -2791,6 +2809,7 @@ protected:
 
     //! affine decomposition terms for the right hand side
     std::vector< std::vector <std::vector<vector_ptrtype>> > M_Fqm;
+    std::map< int, std::vector< std::vector<std::vector<vector_ptrtype> > > > M_Fvqm;
 
     sparse_matrix_ptrtype M_monoA;
     sparse_matrix_ptrtype M_monoM;

@@ -74,6 +74,7 @@ public :
 
     /*space*/
     typedef FunctionSpace<mesh_type , basis_type > space_type ;
+    typedef space_type ospace_type; // for eventual FE output
 
     static const bool is_time_dependent=false;
     static const bool is_linear=true;
@@ -124,6 +125,14 @@ public :
     typedef space_type functionspace_type;
     typedef boost::shared_ptr<functionspace_type> functionspace_ptrtype;
     typedef functionspace_ptrtype space_ptrtype;
+
+    /* function space for eventual FE output */
+    typedef typename mpl::if_<is_shared_ptr<FunctionSpaceDefinition>,
+                              mpl::identity<typename FunctionSpaceDefinition::ospace_type::element_type>,
+                              mpl::identity<FunctionSpaceDefinition>>::type::type::ospace_type ospace_type;
+    typedef ospace_type ofunctionspace_type;
+    typedef boost::shared_ptr<ofunctionspace_type> ofunctionspace_ptrtype;
+    typedef ofunctionspace_ptrtype ospace_ptrtype;
 
     typedef typename functionspace_type::mesh_type mesh_type;
     typedef boost::shared_ptr<mesh_type> mesh_ptrtype;
@@ -1232,6 +1241,12 @@ public :
         parameter_type muref;
         return muref;
     }
+    virtual bool outputIsFE(int output_index)
+    {
+        return false;
+    }
+    virtual int nDofOutputFE(){return 0;}
+    virtual int globalDofOutputFE(int i){return 0;}
 
     //for linear steady models, mass matrix does not exist
     //non-linear steady models need mass matrix for the initial guess
@@ -1751,6 +1766,7 @@ public:
      * space from the finite element space.
      */
     void setFunctionSpaces( functionspace_ptrtype const& Vh );
+    void setOutputFunctionSpaces( ofunctionspace_ptrtype const& Vh );
 
     /**
      * \brief Returns the function space
@@ -1775,6 +1791,14 @@ public:
         return XN;
     }
 
+    /**
+     * \brief Returns the reduced basis function space
+     */
+    ofunctionspace_ptrtype const& outputFunctionSpace() const
+    {
+        return Xh_output;
+    }
+
 
     //! return the parameter space
     parameterspace_ptrtype const& parameterSpace() const
@@ -1784,6 +1808,7 @@ public:
 
     parameterspace_ptrtype Dmu;
     functionspace_ptrtype Xh;
+    ofunctionspace_ptrtype Xh_output;
     rbfunctionspace_ptrtype XN;
 
 protected :
@@ -1812,6 +1837,8 @@ protected :
     std::vector< std::vector<sparse_matrix_ptrtype> > M_Mqm;
     std::vector< std::vector<std::vector<vector_ptrtype> > > M_Fqm;
     std::vector< std::vector<std::vector<vector_ptrtype> > > M_Rqm;
+
+    std::map< int, std::vector< std::vector< std::vector<vector_ptrtype> > > > M_Fvqm;
 
     sparse_matrix_ptrtype M_monoA;
     sparse_matrix_ptrtype M_monoM;
@@ -1863,6 +1890,16 @@ ModelCrbBase<ParameterDefinition,FunctionSpaceDefinition,_Options,EimDefinition>
     //XN = rbfunctionspace_type::New( _model=this->shared_from_this() );
     //XN->setFunctionSpace( Vh );
     XN->setModel( this->shared_from_this() );
+}
+template <typename ParameterDefinition,
+          typename FunctionSpaceDefinition,
+          int _Options,
+          typename EimDefinition
+          >
+void
+ModelCrbBase<ParameterDefinition,FunctionSpaceDefinition,_Options,EimDefinition>::setOutputFunctionSpaces( ofunctionspace_ptrtype const& Vh )
+{
+    Xh_output = Vh;
 }
 
 
