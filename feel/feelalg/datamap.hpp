@@ -51,7 +51,6 @@ class DataMap;
  */
 class IndexSplit : public std::vector<std::vector<size_type> >
 {
-    friend class boost::serialization::access;
     typedef IndexSplit self_type;
     typedef boost::shared_ptr<self_type> self_ptrtype;
     typedef std::vector<std::vector<size_type> > super_type;
@@ -120,103 +119,24 @@ class IndexSplit : public std::vector<std::vector<size_type> >
 
     self_ptrtype applyFieldsDef( FieldsDef const& fieldsDef ) const;
 
+#if 1
     template<class Archive>
-    void save(Archive & ar, const unsigned int version) const
+    void serialize(Archive & ar, const unsigned int version)
         {
-            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] save" << std::endl;
-            size_type firstIndex_size = this->M_firstIndex.size();
-            ar << BOOST_SERIALIZATION_NVP( firstIndex_size );
-            for(int i=0; i<firstIndex_size; i++)
-            {
-                size_type firstIndex_i = this->firstIndex( i );
-                ar << BOOST_SERIALIZATION_NVP( firstIndex_i );
-            }
-            size_type lastIndex_size = this->M_lastIndex.size();
-            ar << BOOST_SERIALIZATION_NVP( lastIndex_size );
-            for(int i=0; i<lastIndex_size; i++)
-            {
-                size_type lastIndex_i = this->lastIndex( i );
-                ar << BOOST_SERIALIZATION_NVP( lastIndex_i );
-            }
-            size_type nIndex_size = this->M_nIndex.size();
-            ar << BOOST_SERIALIZATION_NVP( nIndex_size );
-            for(int i=0; i<nIndex_size; i++)
-            {
-                size_type nIndex_i = this->nIndex( i );
-                ar << BOOST_SERIALIZATION_NVP( nIndex_i );
-            }
-            size_type nIndexForSmallerRankId_size = this->M_nIndexForSmallerRankId.size();
-            ar << BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_size );
-            for(int i=0; i<nIndexForSmallerRankId_size; i++)
-            {
-                size_type nIndexForSmallerRankId_i = this->nIndexForSmallerRankId( i );
-                ar << BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_i );
-            }
-            size_type tag_size = this->M_tag.size();
-            ar << BOOST_SERIALIZATION_NVP( tag_size );
-            for(int i=0; i<tag_size; i++)
-            {
-                size_type tag_i = this->tag( i );
-                ar << BOOST_SERIALIZATION_NVP( tag_i );
-            }
-            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] save ok" << std::endl;
+            std::cout << "Proc[" << Environment::worldComm().globalRank() << "] indexsplit "
+                      << (Archive::is_saving::value? "save":"load")
+                      << " start" << std::endl;
+            ar & BOOST_SERIALIZATION_BASE_OBJECT_NVP(super_type);
+            ar & BOOST_SERIALIZATION_NVP(M_firstIndex);
+            ar & BOOST_SERIALIZATION_NVP(M_lastIndex);
+            ar & BOOST_SERIALIZATION_NVP(M_nIndex);
+            ar & BOOST_SERIALIZATION_NVP(M_nIndexForSmallerRankId);
+            ar & BOOST_SERIALIZATION_NVP(M_tag);
+            std::cout << "Proc[" << Environment::worldComm().globalRank() << "] indexsplit "
+                      << (Archive::is_saving::value? "save":"load")
+                      << " finished" << std::endl;
         }
-    template<class Archive>
-    void load(Archive & ar, const unsigned int version)
-        {
-            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] load" << std::endl;
-            size_type firstIndex_size;
-            ar >> BOOST_SERIALIZATION_NVP( firstIndex_size );
-            this->M_firstIndex.resize( firstIndex_size );
-            for(int i=0; i<firstIndex_size; i++)
-            {
-                size_type firstIndex_i;
-                ar >> BOOST_SERIALIZATION_NVP( firstIndex_i );
-                this->setFirstIndex( i, firstIndex_i );
-            }
-
-            size_type lastIndex_size;
-            ar >> BOOST_SERIALIZATION_NVP( lastIndex_size );
-            this->M_lastIndex.resize( lastIndex_size );
-            for(int i=0; i<lastIndex_size; i++)
-            {
-                size_type lastIndex_i;
-                ar >> BOOST_SERIALIZATION_NVP( lastIndex_i );
-                this->setLastIndex( i, lastIndex_i );
-            }
-
-            size_type nIndex_size;
-            ar >> BOOST_SERIALIZATION_NVP( nIndex_size );
-            this->M_nIndex.resize( nIndex_size );
-            for(int i=0; i<nIndex_size; i++)
-            {
-                size_type nIndex_i;
-                ar >> BOOST_SERIALIZATION_NVP( nIndex_i );
-                this->setNIndex( i, nIndex_i );
-            }
-
-            size_type nIndexForSmallerRankId_size;
-            ar >> BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_size );
-            this->M_nIndexForSmallerRankId.resize( nIndexForSmallerRankId_size );
-            for(int i=0; i<nIndexForSmallerRankId_size; i++)
-            {
-                size_type nIndexForSmallerRankId_i;
-                ar >> BOOST_SERIALIZATION_NVP( nIndexForSmallerRankId_i );
-                this->setNIndexForSmallerRankId(i, nIndexForSmallerRankId_i );
-            }
-
-            size_type tag_size;
-            ar >> BOOST_SERIALIZATION_NVP( tag_size );
-            this->M_tag.resize( tag_size );
-            for(int i=0; i<tag_size; i++)
-            {
-                size_type tag_i;
-                ar >> BOOST_SERIALIZATION_NVP( tag_i );
-                this->setTag( i, tag_i );
-            }
-            std::cout << "Proc " << Environment::worldComm().globalRank() << "[IndexSplit] load ok" << std::endl;
-        }
-    BOOST_SERIALIZATION_SPLIT_MEMBER()
+#endif
 
 private :
 
@@ -237,7 +157,6 @@ class DataMap
 {
 
 public:
-    friend class boost::serialization::access;
 
     typedef DataMap self_type;
     typedef IndexSplit indexsplit_type;
@@ -733,7 +652,7 @@ public:
                                                  bool _checkAndFixInputRange=true ) const;
 
     //@}
-
+#if 0
     template<class Archive>
     void save(Archive & ar, const unsigned int version) const
         {
@@ -870,6 +789,8 @@ public:
             }
             std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] load ok" << std::endl;
         }
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
+#endif
 #if 0
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version) const
@@ -879,7 +800,6 @@ public:
             std::cout << "Proc " << Environment::worldComm().globalRank() << "[datamap] serialize ok" << std::endl;
         }
 #endif
-    BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 
 protected:
