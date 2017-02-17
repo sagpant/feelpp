@@ -1245,8 +1245,8 @@ public :
     {
         return false;
     }
-    virtual int nDofOutputFE(){return 0;}
-    virtual int globalDofOutputFE(int i){return 0;}
+    virtual int nDofOutputFE(int output_index){return 0;}
+    virtual int globalDofOutputFE(int output_index, int i){return 0;}
 
     //for linear steady models, mass matrix does not exist
     //non-linear steady models need mass matrix for the initial guess
@@ -1766,7 +1766,7 @@ public:
      * space from the finite element space.
      */
     void setFunctionSpaces( functionspace_ptrtype const& Vh );
-    void setOutputFunctionSpaces( ofunctionspace_ptrtype const& Vh );
+    void setOutputFunctionSpaces( int output_index, ofunctionspace_ptrtype const& Vh );
 
     /**
      * \brief Returns the function space
@@ -1794,9 +1794,9 @@ public:
     /**
      * \brief Returns the reduced basis function space
      */
-    ofunctionspace_ptrtype const& outputFunctionSpace() const
+    ofunctionspace_ptrtype const& outputFunctionSpace(int output_index) const
     {
-        return Xh_output;
+        return Xh_output[output_index];
     }
 
 
@@ -1808,7 +1808,7 @@ public:
 
     parameterspace_ptrtype Dmu;
     functionspace_ptrtype Xh;
-    ofunctionspace_ptrtype Xh_output;
+    std::vector<ofunctionspace_ptrtype> Xh_output;
     rbfunctionspace_ptrtype XN;
 
 protected :
@@ -1897,9 +1897,11 @@ template <typename ParameterDefinition,
           typename EimDefinition
           >
 void
-ModelCrbBase<ParameterDefinition,FunctionSpaceDefinition,_Options,EimDefinition>::setOutputFunctionSpaces( ofunctionspace_ptrtype const& Vh )
+ModelCrbBase<ParameterDefinition,FunctionSpaceDefinition,_Options,EimDefinition>::setOutputFunctionSpaces( int output_index, ofunctionspace_ptrtype const& Vh )
 {
-    Xh_output = Vh;
+    if( output_index >= Xh_output.size() )
+        Xh_output.resize(output_index+1);
+    Xh_output[output_index] = Vh;
 }
 
 

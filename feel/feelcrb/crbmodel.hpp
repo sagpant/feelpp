@@ -543,9 +543,9 @@ public:
     }
 
     //!  Returns the function space for (eventual) FE output
-    ofunctionspace_ptrtype outputFunctionSpace() const
+    ofunctionspace_ptrtype outputFunctionSpace(int output_index) const
     {
-        return M_model->outputFunctionSpace();
+        return M_model->outputFunctionSpace(output_index);
     }
 
     //! return the number of \f$\mu\f$ independent terms for the bilinear form

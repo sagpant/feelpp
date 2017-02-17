@@ -1502,6 +1502,8 @@ protected:
     // output FE field
     std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_pr;
     std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_du;
+    std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_pr_glob;
+    std::vector < std::vector< std::vector<vectorN_type> > > M_Lvqm_du_glob;
 
     //initial guess
     std::vector < std::vector<vectorN_type> > M_InitialGuessV_pr;
@@ -3147,18 +3149,31 @@ CRB<TruthModelType>::offline()
                 }
                 else
                 {
-                    M_Lvqm_pr[q][m].resize( M_model->model()->nDofOutputFE() );
-                    M_Lvqm_du[q][m].resize( M_model->model()->nDofOutputFE() );
-                    for(int dof=0; dof < M_model->model()->nDofOutputFE(); dof++)
+                    M_Lvqm_pr[q][m].resize( M_model->model()->nDofOutputFE(M_output_index) );
+                    M_Lvqm_du[q][m].resize( M_model->model()->nDofOutputFE(M_output_index) );
+                    M_Lvqm_pr_glob[q][m].resize( M_model->model()->nGlobalDofOutputFE(M_output_index) );
+                    M_Lvqm_du_glob[q][m].resize( M_model->model()->nGlobalDofOutputFE(M_output_index) );
+                    for ( size_type l = 1; l <= number_of_elements_to_update; ++l )
                     {
-                        M_Lvqm_pr[q][m][dof].conservativeResize( M_N );
-                        M_Lvqm_du[q][m][dof].conservativeResize( M_N );
-
-                        for ( size_type l = 1; l <= number_of_elements_to_update; ++l )
+                        int index = M_N-l;
+                        // every proc do the inner_product
+                        for ( int gd = 0; gd < M_model->model()->nGlobalDofOutputFE(M_output_index); ++gd)
                         {
-                            int index = M_N-l;
-                            M_Lvqm_pr[q][m][dof]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->primalBasisElement(index), dof);
-                            M_Lvqm_du[q][m][dof]( index ) = M_model->Fqm( M_output_index, q, m, M_model->rBFunctionSpace()->dualBasisElement(index), dof);
+                            M_Lvqm_pr_glob[q][m][gd].conservativeResize( M_N );
+                            M_Lvqm_du_glob[q][m][gd].conservativeResize( M_N );
+                            M_Lvqm_pr_glob[q][m][gd]( index ) = M_model->Fqm(M_output_index, q, m, M_model->rBFunctionSpace()->primalBasisElement(index), gd);
+                            M_Lvqm_du_glob[q][m][gd]( index ) = M_model->Fqm(M_output_index, q, m, M_model->rBFunctionSpace()->dualBasisElement(index), gd);
+                        }
+                        // the proc where the belong to retrieve the inner product
+                        for(int dof=0; dof < M_model->model()->nDofOutputFE(M_output_index); dof++)
+                        {
+                            M_Lvqm_pr[q][m][dof].conservativeResize( M_N );
+                            M_Lvqm_du[q][m][dof].conservativeResize( M_N );
+
+                            auto globalDof = M_model->model()->globalDofOutputFE(M_output_index, dof);
+
+                            M_Lvqm_pr[q][m][dof]( index ) = M_Lvqm_pr_glob[q][m][globalDof](index);
+                            M_Lvqm_du[q][m][dof]( index ) = M_Lvqm_du_glob[q][m][globalDof](index);
                         }
                     }
                 }
@@ -3731,6 +3746,10 @@ CRB<TruthModelType>::updateAffineDecompositionSize()
     M_Fqm_du.resize( M_model->Ql( 0 ) );
     M_Lqm_pr.resize( M_model->Ql( M_output_index ) );
     M_Lqm_du.resize( M_model->Ql( M_output_index ) );
+    M_Lvqm_pr.resize( M_model->Ql( M_output_index ) );
+    M_Lvqm_du.resize( M_model->Ql( M_output_index ) );
+    M_Lvqm_pr_glob.resize( M_model->Ql( M_output_index ) );
+    M_Lvqm_du_glob.resize( M_model->Ql( M_output_index ) );
     if(M_use_newton)
         M_Rqm_pr.resize( M_model->Ql( 0 ) );
 
@@ -3745,6 +3764,10 @@ CRB<TruthModelType>::updateAffineDecompositionSize()
     {
         M_Lqm_pr[q].resize( M_model->mMaxF( M_output_index , q) );
         M_Lqm_du[q].resize( M_model->mMaxF( M_output_index , q) );
+        M_Lvqm_pr[q].resize( M_model->mMaxF( M_output_index , q) );
+        M_Lvqm_du[q].resize( M_model->mMaxF( M_output_index , q) );
+        M_Lvqm_pr_glob[q].resize( M_model->mMaxF( M_output_index , q) );
+        M_Lvqm_du_glob[q].resize( M_model->mMaxF( M_output_index , q) );
     }
 }
 
@@ -5292,9 +5315,9 @@ CRB<TruthModelType>::fixedPointPrimal(  size_type N, parameter_type const& mu, s
             else
             {
                 std::cout << "Proc " << this->worldComm().globalRank() << ", output FE, ndof = "
-                          << M_model->model()->nDofOutputFE() << std::endl;
-                auto outputFE = M_model->outputFunctionSpace()->element();
-                for( int dof=0; dof<M_model->model()->nDofOutputFE(); dof++ )
+                          << M_model->model()->nDofOutputFE(M_output_index) << std::endl;
+                auto outputFE = M_model->model()->outputFunctionSpace(M_output_index)->element();
+                for( int dof=0; dof<M_model->model()->nDofOutputFE(M_output_index); dof++ )
                 {
                     std::cout << "output FE, Ql = " << Ql << std::endl;
                     L.setZero( N );
@@ -5309,8 +5332,8 @@ CRB<TruthModelType>::fixedPointPrimal(  size_type N, parameter_type const& mu, s
                     }
 
                     auto output = L.dot( uN[0] );
-                    std::cout << "[computeOutput] output(" << M_model->model()->globalDofOutputFE(dof) << ") = " << output << std::endl;
-                    outputFE.set(M_model->model()->globalDofOutputFE(dof), output);
+                    std::cout << "[computeOutput] output(" << M_model->model()->globalDofOutputFE(M_output_index, dof) << ") = " << output << std::endl;
+                    outputFE.set(M_model->model()->globalDofOutputFE(M_output_index, dof), output);
                 }
                 output_vector[0] = (outputFE.min() + outputFE.max())/2.; //Mean
 
@@ -5320,7 +5343,7 @@ CRB<TruthModelType>::fixedPointPrimal(  size_type N, parameter_type const& mu, s
                 std::string name = "outputFE" + mu_str;
                 export_ptrtype exporter;
                 exporter = export_ptrtype( Exporter<mesh_type>::New( "OutputFE" ) );
-                exporter->step( 0 )->setMesh( M_model->outputFunctionSpace()->mesh() );
+                exporter->step( 0 )->setMesh( M_model->model()->outputFunctionSpace(M_output_index)->mesh() );
                 exporter->step( 0 )->add( name.c_str(), outputFE );
                 exporter->save();
             }
