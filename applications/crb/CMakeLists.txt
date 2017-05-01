@@ -158,3 +158,5 @@ ENDIF()
 IF ( FEELPP_ENABLE_CRB_EEG )
   add_subdirectory(eeg)
 ENDIF()
+
+add_subdirectory(minimal)
