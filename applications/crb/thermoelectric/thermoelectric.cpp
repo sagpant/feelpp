@@ -78,10 +78,10 @@ int Thermoelectric::mLQF( int l, int q )
 
 int Thermoelectric::mCompliantQ(int q )
 {
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
     auto bc = M_modelProps->boundaryConditions();
     if( q == 0 )
-        return eimGradGrad->mMax();
+        return eimJoule->mMax();
     else if( q < 1+bc["potential"]["Dirichlet"].size() )
         return 1;
     else if( q < 1+bc["potential"]["Dirichlet"].size()+bc["temperature"]["Robin"].size() )
@@ -167,14 +167,14 @@ void Thermoelectric::initModel()
         Pset->readFromFile(supersamplingname);
     }
 
-    auto eim_gradgrad = eim( _model=boost::dynamic_pointer_cast<Thermoelectric>(this->shared_from_this() ),
+    auto eim_joule = eim( _model=boost::dynamic_pointer_cast<Thermoelectric>(this->shared_from_this() ),
                              _element=*M_V,
                              _parameter=M_mu,
                              _expr=cst_ref(M_mu.parameterNamed("sigma"))*inner(gradv(*M_V)),
                              _space=JspaceEim,
-                             _name="eim_gradgrad",
+                             _name="eim_joule",
                              _sampling=Pset );
-    this->addEimDiscontinuous( eim_gradgrad );
+    this->addEimDiscontinuous( eim_joule );
 
     this->resizeQm();
     this->decomposition();
@@ -191,7 +191,7 @@ void Thermoelectric::decomposition()
 
     auto gamma = doption("thermoelectric.gamma");
 
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
     auto bc = M_modelProps->boundaryConditions();
 
     /************** Right hand side **************/
@@ -227,11 +227,11 @@ void Thermoelectric::decomposition()
     }
 
     /************** Left hand side **************/
-    for( int m = 0; m < eimGradGrad->mMax(); ++m )
+    for( int m = 0; m < eimJoule->mMax(); ++m )
     {
         auto f0 = form1(_test=Xh);
         f0 = integrate(elements(M_mesh),
-                       inner(id(p), idv(eimGradGrad->q(m))) );
+                       inner(id(p), idv(eimJoule->q(m))) );
         M_Fqm[0][0][m] = f0.vectorPtr();
     }
 
@@ -271,35 +271,35 @@ Thermoelectric::computeBetaInitialGuess( parameter_type const& mu )
 Thermoelectric::beta_type
 Thermoelectric::computeBetaQm( element_type const& T, parameter_type const& mu )
 {
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
-    auto betaEimGradGrad = eimGradGrad->beta( mu, T );
-    this->fillBetaQm(mu, betaEimGradGrad);
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
+    auto betaEimJoule = eimJoule->beta( mu, T );
+    this->fillBetaQm(mu, betaEimJoule);
     return boost::make_tuple( this->M_betaAqm, this->M_betaFqm);
 }
 
 Thermoelectric::beta_type
 Thermoelectric::computeBetaQm( vectorN_type const& urb, parameter_type const& mu )
 {
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
-    auto betaEimGradGrad = eimGradGrad->beta( mu, urb );
-    this->fillBetaQm(mu, betaEimGradGrad);
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
+    auto betaEimJoule = eimJoule->beta( mu, urb );
+    this->fillBetaQm(mu, betaEimJoule);
     return boost::make_tuple( this->M_betaAqm, this->M_betaFqm);
 }
 
 Thermoelectric::beta_type
 Thermoelectric::computeBetaQm( parameter_type const& mu )
 {
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
-    auto betaEimGradGrad = eimGradGrad->beta( mu );
-    this->fillBetaQm(mu, betaEimGradGrad);
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
+    auto betaEimJoule = eimJoule->beta( mu );
+    this->fillBetaQm(mu, betaEimJoule);
     return boost::make_tuple( this->M_betaAqm, this->M_betaFqm);
 }
 
-void Thermoelectric::fillBetaQm( parameter_type const& mu, vectorN_type betaEimGradGrad )
+void Thermoelectric::fillBetaQm( parameter_type const& mu, vectorN_type betaEimJoule )
 {
-    auto eimGradGrad = this->scalarDiscontinuousEim()[0];
+    auto eimJoule = this->scalarDiscontinuousEim()[0];
     auto bc = M_modelProps->boundaryConditions();
-    // auto betaEimGradGrad = eimGradGrad->beta( mu );
+    // auto betaEimJoule = eimJoule->beta( mu );
 
     M_betaAqm[0][0] = mu.parameterNamed("sigma");
     M_betaAqm[1][0] = mu.parameterNamed("k");
@@ -316,8 +316,8 @@ void Thermoelectric::fillBetaQm( parameter_type const& mu, vectorN_type betaEimG
         M_betaAqm[idx++][0] = e.evaluate();
     }
 
-    for( int m = 0; m < eimGradGrad->mMax(); ++m )
-        M_betaFqm[0][0][m] = betaEimGradGrad(m);
+    for( int m = 0; m < eimJoule->mMax(); ++m )
+        M_betaFqm[0][0][m] = betaEimJoule(m);
     idx = 1;
     for( auto const& exAtM : bc["potential"]["Dirichlet"] )
     {
@@ -411,7 +411,7 @@ Thermoelectric::solve( parameter_type const& mu )
         f += integrate( markedfaces(M_mesh, exAtM.marker() ),
                         sigma*e*(gamma/hFace()*id(phiV) -  grad(phiV)*N()) );
     }
-    a.solve( _solution=V, _rhs=f, _name="mono" );
+    a.solve( _solution=M_V, _rhs=f, _name="mono" );
 
     auto aT = form2(_test=Th, _trial=Th);
     // T
@@ -433,7 +433,7 @@ Thermoelectric::solve( parameter_type const& mu )
     auto fT = form1(_test=Th);
     // T right hand side
     fT = integrate(elements(M_mesh),
-                   id(phiT)*sigma*gradv(V)*trans(gradv(V)) );
+                   id(phiT)*sigma*gradv(M_V)*trans(gradv(M_V)) );
 
     // T Robin condition
     for( auto const& exAtM : bc["temperature"]["Robin"] )
@@ -447,11 +447,11 @@ Thermoelectric::solve( parameter_type const& mu )
                          e*id(phiT) );
     }
 
-    aT.solve( _solution=T, _rhs=fT, _name="mono" );
+    aT.solve( _solution=M_T, _rhs=fT, _name="mono" );
 
     auto solution = Xh->element();
-    solution.template element<0>() = V;
-    solution.template element<1>() = T;
+    solution.template element<0>() = *M_V;
+    solution.template element<1>() = *M_T;
 
     auto e = exporter(M_mesh);
     e->add("sol", solution);
