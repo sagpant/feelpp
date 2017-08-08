@@ -1378,6 +1378,12 @@ public:
             return M_parameterNames;
         }
 
+    int indexOfName( std::string name ) const
+        {
+            auto it = std::find(M_parameterNames.begin(), M_parameterNames.end(), name);
+            return it == M_parameterNames.end() ? -1 : it - M_parameterNames.begin();
+        }
+
     //@}
 
     /** @name  Mutators

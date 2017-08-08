@@ -151,7 +151,9 @@ void Thermoelectric::initModel()
 
     auto Pset = this->Dmu->sampling();
     int Ne = ioption(_name="thermoelectric.trainset-eim-size");
-    std::vector<size_type> N(parameterSpace()->dimension(), Ne);
+    std::vector<size_type> N(parameterSpace()->dimension(), 1);
+    N[Dmu->indexOfName("sigma")] = Ne;
+    N[Dmu->indexOfName("current")] = Ne;
 
     std::string supersamplingname =(boost::format("DmuEim-Ne%1%-generated-by-master-proc") %Ne ).str();
     std::ifstream file ( supersamplingname );
