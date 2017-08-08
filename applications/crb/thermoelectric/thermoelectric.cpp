@@ -90,38 +90,48 @@ int Thermoelectric::mCompliantQ(int q )
         return 0;
 }
 
-void Thermoelectric::resizeQm()
+void Thermoelectric::resizeQm( bool resizeMat )
 {
-    M_Aqm.resize( Qa());
+    if( resizeMat )
+        M_Aqm.resize( Qa());
     M_betaAqm.resize( Qa() );
     for( int q = 0; q < Qa(); ++q )
     {
-        M_Aqm[q].resize(mQA(q), backend()->newMatrix(Xh, Xh ) );
+        if( resizeMat )
+            M_Aqm[q].resize(mQA(q), backend()->newMatrix(Xh, Xh ) );
         M_betaAqm[q].resize(mQA(q));
     }
 
-    M_Fqm.resize(Nl());
+    if( resizeMat )
+        M_Fqm.resize(Nl());
     M_betaFqm.resize(Nl());
     for( int l = 0; l < Nl(); ++l )
     {
-        M_Fqm[l].resize(Ql(l));
+        if( resizeMat )
+            M_Fqm[l].resize(Ql(l));
         M_betaFqm[l].resize(Ql(l));
         for( int q = 0; q < Ql(l); ++q )
         {
-            M_Fqm[l][q].resize(mLQF(l, q), backend()->newVector(Xh) );
+            if( resizeMat )
+                M_Fqm[l][q].resize(mLQF(l, q), backend()->newVector(Xh) );
             M_betaFqm[l][q].resize(mLQF(l, q) );
         }
     }
 
-    M_InitialGuess.resize(1);
-    M_InitialGuess[0].resize(1);
-    M_InitialGuess[0][0] = Xh->elementPtr();
+    if( resizeMat )
+    {
+        M_InitialGuess.resize(1);
+        M_InitialGuess[0].resize(1);
+        M_InitialGuess[0][0] = Xh->elementPtr();
+    }
 }
 
 void Thermoelectric::initModel()
 {
     Feel::cout << "initModel" << std::endl;
-    M_modelProps = boost::make_shared<prop_type>(Environment::expand( soption("thermoelectric.filename")));
+    std::string propertyPath = Environment::expand( soption("thermoelectric.filename"));
+    M_modelProps = boost::make_shared<prop_type>(propertyPath);
+    this->addModelFile("property-file", propertyPath);
 
     auto parameters = M_modelProps->parameters();
     Dmu->setDimension(parameters.size());
@@ -180,6 +190,57 @@ void Thermoelectric::initModel()
 
     this->resizeQm();
     this->decomposition();
+}
+
+void Thermoelectric::setupSpecificityModel( boost::property_tree::ptree const& ptree, std::string const& dbDir )
+{
+    std::string propertyPath;
+    if( this->hasModelFile("property-file") )
+        propertyPath = this->additionalModelFiles().find("property-file")->second;
+    else
+        Feel::cerr << "Warning!! the database does not contain the property file! Expect bugs!"
+                   << std::endl;
+    M_modelProps = boost::make_shared<prop_type>(propertyPath);
+
+    auto parameters = M_modelProps->parameters();
+    Dmu = parameterspace_type::New( parameters.size(), Environment::worldComm() );
+
+    auto mu_min = Dmu->element();
+    auto mu_max = Dmu->element();
+    int i = 0;
+    for( auto const& parameterPair : parameters )
+    {
+        mu_min(i) = parameterPair.second.min();
+        mu_max(i) = parameterPair.second.max();
+        Dmu->setParameterName(i++, parameterPair.first );
+    }
+    Dmu->setMin(mu_min);
+    Dmu->setMax(mu_max);
+    M_mu = Dmu->element();
+
+    boost::shared_ptr<J_space_type> JspaceEim;
+    if ( !pT )
+        pT.reset( new element_type );
+    M_V = pT->template elementPtr<0>();
+    M_T = pT->template elementPtr<1>();
+
+    auto const& ptreeEim = ptree.get_child( "eim" );
+    auto const& ptreeEimJoule = ptreeEim.get_child( "eim_joule" );
+    std::string dbnameEimJoule = ptreeEimJoule.template get<std::string>( "database-filename" );
+
+    auto eim_joule = eim( _model=boost::dynamic_pointer_cast<Thermoelectric>( this->shared_from_this() ),
+                          _element=*M_V,
+                          _space=JspaceEim,
+                          _parameter=M_mu,
+                          _expr=cst_ref(M_mu.parameterNamed("sigma"))*inner(gradv(*M_V)),
+                          //_sampling=Pset,
+                          _name="eim_joule",
+                          _filename=dbnameEimJoule,
+                          _directory=dbDir );
+    this->addEimDiscontinuous( eim_joule );
+    this->updateRbSpaceContextEim();
+
+    this->resizeQm( false );
 }
 
 void Thermoelectric::decomposition()

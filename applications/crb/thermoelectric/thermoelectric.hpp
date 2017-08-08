@@ -114,7 +114,7 @@ public:
                                     NonLinear,
                                     EimDefinition<ParameterDefinition,
                                                   FunctionSpaceDefinition> >;
-    using parameter_space_type = ParameterDefinition;
+    using parameterspace_type = ParameterDefinition::parameterspace_type;
     using function_space_type = FunctionSpaceDefinition;
     using eim_definition_type = EimDefinition<ParameterDefinition, FunctionSpaceDefinition>;
 
@@ -172,10 +172,11 @@ public:
     int mQA( int q );
     int mLQF( int l, int q );
     int mCompliantQ( int q );
-    void resizeQm();
+    void resizeQm( bool resizeMat = true );
     parameter_type newParameter() { return Dmu->element(); }
 
     void initModel();
+    void setupSpecificityModel( boost::property_tree::ptree const& ptree, std::string const& dbDir );
 
     void decomposition();
 
