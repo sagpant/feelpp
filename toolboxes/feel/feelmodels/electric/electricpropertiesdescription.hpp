@@ -26,7 +26,8 @@ public :
     ElectricPropertiesDescription( std::string const& prefix )
         :
         M_isDefinedOnWholeMesh( true ),
-        M_electricConductivityDefaultValue( doption(_name="electric-conductivity",_prefix=prefix) )
+        M_electricConductivityDefaultValue( doption(_name="electric-conductivity",_prefix=prefix) ),
+        M_electricConductivityMean( doption(_name="electric-conductivity",_prefix=prefix) )
         {}
 
     ElectricPropertiesDescription( ElectricPropertiesDescription const& ) = default;
@@ -87,6 +88,8 @@ public :
                     M_fieldElectricConductivity->on(_range=range,_expr=expr);
                 }
             }
+
+            M_electricConductivityMean = mean(_range=markedelements(mesh,M_markers),_expr=idv(M_fieldElectricConductivity) )(0,0);
         }
 
     std::set<std::string> const& markers() const { return M_markers; }
@@ -111,6 +114,7 @@ public :
             CHECK( itFindMat != M_electricConductivityByMaterial.end() ) << "material name not registered : " << matName;
             return itFindMat->second.value();
         }
+    double meanElectricConductivity() const { return M_electricConductivityMean; }
 
     element_type const& fieldElectricConductivity() const { return *M_fieldElectricConductivity; }
     element_ptrtype const& fieldElectricConductivityPtr() const { return M_fieldElectricConductivity; }
@@ -178,6 +182,7 @@ private :
     std::map<std::string, ModelExpressionScalar> M_electricConductivityByMaterial;
     element_ptrtype M_fieldElectricConductivity;
     double M_electricConductivityDefaultValue;
+    double M_electricConductivityMean;
 };
 
 } // namespace FeelModels

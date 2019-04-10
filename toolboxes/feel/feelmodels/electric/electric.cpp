@@ -623,6 +623,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDE( DataUpdateLinear & data ) const
 
     //--------------------------------------------------------------------------------------------------//
 
+    double sigmaMean = M_electricProperties->meanElectricConductivity();
     if ( buildCstPart )
     {
         for ( auto const& rangeData : M_electricProperties->rangeMeshElementsByMaterial() )
@@ -635,7 +636,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDE( DataUpdateLinear & data ) const
                 double sigma = electricConductivity.value();
                 bilinearForm_PatternCoupled +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradt(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                                _geomap=this->geomap() );
             }
             else
@@ -646,7 +647,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDE( DataUpdateLinear & data ) const
                 //auto sigma = idv(M_electricProperties->fieldElectricConductivity());
                 bilinearForm_PatternCoupled +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradt(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                                _geomap=this->geomap() );
             }
         }
@@ -660,7 +661,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDE( DataUpdateLinear & data ) const
             auto rangeEltUsed = (markers(d).empty())? M_rangeMeshElements : markedelements(this->mesh(),markers(d));
             myLinearForm +=
                 integrate( _range=rangeEltUsed,
-                           _expr= expression(d)*id(v),
+                           _expr= expression(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
     }
@@ -721,6 +722,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobian( DataUpdateJacobian & data ) const
                                               _rowstart=this->rowStartInMatrix()+startBlockIndexElectricPotential,
                                               _colstart=this->colStartInMatrix()+startBlockIndexElectricPotential );
 
+    double sigmaMean = M_electricProperties->meanElectricConductivity();
     for ( auto const& rangeData : M_electricProperties->rangeMeshElementsByMaterial() )
     {
         std::string const& matName = rangeData.first;
@@ -733,7 +735,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobian( DataUpdateJacobian & data ) const
                 double sigma = electricConductivity.value();
                 bilinearForm_PatternCoupled +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradt(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                                _geomap=this->geomap() );
             }
         }
@@ -747,7 +749,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobian( DataUpdateJacobian & data ) const
                 //auto sigma = idv(M_electricProperties->fieldElectricConductivity());
                 bilinearForm_PatternCoupled +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradt(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                                _geomap=this->geomap() );
             }
         }
@@ -802,11 +804,13 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobianWeakBC( element_electricpotential_ex
                                                   _pattern=size_type(Pattern::COUPLED),
                                                   _rowstart=this->rowStartInMatrix()+startBlockIndexElectricPotential,
                                                   _colstart=this->colStartInMatrix()+startBlockIndexElectricPotential );
+
+        double sigmaMean = M_electricProperties->meanElectricConductivity();
         for( auto const& d : this->M_bcRobin )
         {
             bilinearForm_PatternCoupled +=
                 integrate( _range=markedfaces(mesh,this->markerRobinBC( name(d) ) ),
-                           _expr= expression1(d)*idt(v)*id(v),
+                           _expr= expression1(d)/sigmaMean*idt(v)*id(v),
                            _geomap=this->geomap() );
         }
     }
@@ -838,6 +842,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) const
     auto myLinearForm = form1( _test=XhV, _vector=R,
                                _rowstart=this->rowStartInVector() + startBlockIndexElectricPotential );
 
+    double sigmaMean = M_electricProperties->meanElectricConductivity();
 
     for ( auto const& rangeData : M_electricProperties->rangeMeshElementsByMaterial() )
     {
@@ -851,7 +856,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) const
                 double sigma = electricConductivity.value();
                 myLinearForm +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradv(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradv(v),grad(v)),
                                _geomap=this->geomap() );
             }
         }
@@ -865,7 +870,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) const
                 //auto sigma = idv(M_electricProperties->fieldElectricConductivity());
                 myLinearForm +=
                     integrate( _range=range,
-                               _expr= sigma*inner(gradv(v),grad(v)),
+                               _expr= sigma/sigmaMean*inner(gradv(v),grad(v)),
                                _geomap=this->geomap() );
             }
         }
@@ -878,7 +883,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) const
             auto rangeEltUsed = (markers(d).empty())? M_rangeMeshElements : markedelements(this->mesh(),markers(d));
             myLinearForm +=
                 integrate( _range=rangeEltUsed,
-                           _expr= -expression(d)*id(v),
+                           _expr= -expression(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
     }
@@ -924,13 +929,16 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidualWeakBC( element_electricpotential_ex
 
     auto myLinearForm = form1( _test=XhV, _vector=R,
                                _rowstart=this->rowStartInVector()+startBlockIndexElectricPotential );
+
+    double sigmaMean = M_electricProperties->meanElectricConductivity();
+
     if ( buildCstPart )
     {
         for( auto const& d : this->M_bcNeumann )
         {
             myLinearForm +=
                 integrate( _range=markedfaces(mesh,this->markerNeumannBC(NeumannBCShape::SCALAR,name(d)) ),
-                           _expr= -expression(d)*id(v),
+                           _expr= -expression(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
     }
@@ -940,14 +948,14 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateResidualWeakBC( element_electricpotential_ex
         {
             myLinearForm +=
                 integrate( _range=markedfaces(mesh,this->markerRobinBC( name(d) ) ),
-                           _expr= expression1(d)*idv(v)*id(v),
+                           _expr= expression1(d)/sigmaMean*idv(v)*id(v),
                            _geomap=this->geomap() );
         }
         if ( buildCstPart )
         {
             myLinearForm +=
                 integrate( _range=markedfaces(mesh,this->markerRobinBC( name(d) ) ),
-                           _expr= -expression1(d)*expression2(d)*id(v),
+                           _expr= -expression1(d)*expression2(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
     }
@@ -989,6 +997,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDEWeakBC( sparse_matrix_ptrtype& A, v
 {
     if ( this->M_bcNeumann.empty() && this->M_bcRobin.empty() ) return;
 
+    double sigmaMean = M_electricProperties->meanElectricConductivity();
     if ( !buildCstPart )
     {
         auto XhV = this->spaceElectricPotential();
@@ -1001,7 +1010,7 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDEWeakBC( sparse_matrix_ptrtype& A, v
         {
             myLinearForm +=
                 integrate( _range=markedfaces(mesh,this->markerNeumannBC(NeumannBCShape::SCALAR,name(d)) ),
-                           _expr= expression(d)*id(v),
+                           _expr= expression(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
 
@@ -1013,11 +1022,11 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearPDEWeakBC( sparse_matrix_ptrtype& A, v
         {
             bilinearForm_PatternCoupled +=
                 integrate( _range=markedfaces(mesh,this->markerRobinBC( name(d) ) ),
-                           _expr= expression1(d)*idt(v)*id(v),
+                           _expr= expression1(d)/sigmaMean*idt(v)*id(v),
                            _geomap=this->geomap() );
             myLinearForm +=
                 integrate( _range=markedfaces(mesh,this->markerRobinBC( name(d) ) ),
-                           _expr= expression1(d)*expression2(d)*id(v),
+                           _expr= expression1(d)*expression2(d)/sigmaMean*id(v),
                            _geomap=this->geomap() );
         }
 

@@ -521,6 +521,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearElectricDependingOnTemperature( 
                        _rowstart=this->rowStartInMatrix() ,
                        _colstart=this->colStartInMatrix() );
 
+    double sigmaMean = M_electricModel->electricProperties()->meanElectricConductivity();
     for ( auto const& rangeData : M_rangeMeshElementsByMaterial )
     {
         std::string const& matName = rangeData.first;
@@ -535,7 +536,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateLinearElectricDependingOnTemperature( 
         auto sigma = electricConductivity.expr( symbolStr, idv(t) );
         mybf +=
             integrate( _range=range,
-                       _expr= sigma*inner(gradt(v),grad(v)),
+                       _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                        _geomap=this->geomap() );
     }
 
@@ -581,6 +582,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateGenericPreAssemblyJouleLaw( vector_ptr
     auto myLinearForm = form1( _test=XhT,_vector=F,
                                _rowstart=M_heatModel->rowStartInVector() );
 
+    double sigmaMean = M_electricModel->electricProperties()->meanElectricConductivity();
     int sign = ( applyOnResidual )? -1 : 1;
     for ( auto const& rangeData : M_rangeMeshElementsByMaterial )
     {
@@ -592,7 +594,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateGenericPreAssemblyJouleLaw( vector_ptr
             double sigma = sign*electricConductivity.value();
             myLinearForm +=
                 integrate( _range=range,
-                           _expr= sigma*inner(gradv(v)/*,gradv(v)*/)*id(t),
+                           _expr= sigma/sigmaMean*inner(gradv(v)/*,gradv(v)*/)*id(t),
                            _geomap=this->geomap() );
         }
         else
@@ -603,7 +605,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateGenericPreAssemblyJouleLaw( vector_ptr
             //auto sigma = idv(M_electricModel->electricProperties()->fieldElectricConductivity());
             myLinearForm +=
                 integrate( _range=range,
-                           _expr= sigma*inner(gradv(v)/*,gradv(v)*/)*id(t),
+                           _expr= sigma/sigmaMean*inner(gradv(v)/*,gradv(v)*/)*id(t),
                            _geomap=this->geomap() );
         }
     }
@@ -639,6 +641,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobian( DataUpdateJacobian & data ) 
 
     auto mesh = this->mesh();
 
+    double sigmaMean = M_electricModel->electricProperties()->meanElectricConductivity();
     if ( !buildCstPart )
     {
         auto XhV = M_electricModel->spaceElectricPotential();
@@ -707,11 +710,11 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateJacobian( DataUpdateJacobian & data ) 
 
                     mybfVV +=
                         integrate( _range=range,
-                                   _expr= sigma*inner(gradt(v),grad(v)),
+                                   _expr= sigma/sigmaMean*inner(gradt(v),grad(v)),
                                    _geomap=this->geomap() );
                     mybfVT +=
                         integrate( _range=range,
-                                   _expr= sigmaDiffEval*idt(t)*inner(gradv(v),grad(v)),
+                                   _expr= sigmaDiffEval/sigmaMean*idt(t)*inner(gradv(v),grad(v)),
                                    _geomap=this->geomap() );
                 }
             }
@@ -758,6 +761,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) 
         auto mylfV = form1( _test=XhV, _vector=R,
                             _rowstart=this->rowStartInVector()+startBlockIndexElectricPotential );
 
+        double sigmaMean = M_electricModel->electricProperties()->meanElectricConductivity();
         for ( auto const& rangeData : M_rangeMeshElementsByMaterial )
         {
             std::string const& matName = rangeData.first;
@@ -789,7 +793,7 @@ THERMOELECTRIC_CLASS_TEMPLATE_TYPE::updateResidual( DataUpdateResidual & data ) 
                 {
                     mylfV +=
                         integrate( _range=range,
-                                   _expr= sigma*inner(gradv(v),grad(v)),
+                                   _expr= sigma/sigmaMean*inner(gradv(v),grad(v)),
                                    _geomap=this->geomap() );
                 }
             }
