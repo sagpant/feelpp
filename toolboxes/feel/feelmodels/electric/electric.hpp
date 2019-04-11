@@ -211,7 +211,7 @@ private :
     export_ptrtype M_exporter;
     std::set<std::string> M_postProcessFieldExported;
     std::set<std::string> M_postProcessUserFieldExported;
-
+    context_electricpotential_ptrtype M_postProcessMeasuresContextElectricPotential;
 
 };
 

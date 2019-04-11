@@ -276,6 +276,29 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::initPostProcess()
         }
     }
 
+    // point measures
+    for ( auto const& evalPoints : this->modelProperties().postProcess().measuresPoint( this->keyword() ) )
+    {
+        auto const& ptPos = evalPoints.pointPosition();
+        node_type ptCoord(3);
+        for ( int c=0;c<3;++c )
+            ptCoord[c]=ptPos.value()(c);
+
+        auto const& fields = evalPoints.fields();
+        for ( std::string const& field : fields )
+        {
+            if ( field == "electric-potential" )
+            {
+                if ( !M_postProcessMeasuresContextElectricPotential )
+                    M_postProcessMeasuresContextElectricPotential.reset( new context_electricpotential_type( spaceElectricPotential()->context() ) );
+                int ctxId = M_postProcessMeasuresContextElectricPotential->nPoints();
+                M_postProcessMeasuresContextElectricPotential->add( ptCoord );
+                std::string ptNameExport = (boost::format("electric-potential_%1%")%ptPos.name()).str();
+                this->postProcessMeasuresEvaluatorContext().add("electric-potential", ctxId, ptNameExport );
+            }
+        }
+    }
+
     if ( !this->isStationary() )
     {
         if ( this->doRestart() )
@@ -478,7 +501,44 @@ ELECTRIC_CLASS_TEMPLATE_TYPE::exportMeasures( double time )
     auto paramValues = this->modelProperties().parameters().toParameterValues();
     this->modelProperties().postProcess().setParameterValues( paramValues );
 
-    auto fieldTuple = hana::make_tuple( std::make_pair( "electric-potential",this->fieldElectricPotentialPtr() ) );
+    for ( auto const& evalPoints : this->modelProperties().postProcess().measuresPoint( this->keyword() ) )
+    {
+        auto const& ptPos = evalPoints.pointPosition();
+        if ( !ptPos.hasExpression() )
+            continue;
+        node_type ptCoord(3);
+        for ( int c=0;c<3;++c )
+            ptCoord[c]=ptPos.value()(c);
+
+        auto const& fields = evalPoints.fields();
+        for ( std::string const& field : fields )
+        {
+            if ( field == "electric-potential" )
+            {
+                std::string ptNameExport = (boost::format("electric-potential_%1%")%ptPos.name()).str();
+                int ptIdInCtx = this->postProcessMeasuresEvaluatorContext().ctxId("electric-potential",ptNameExport);
+                if ( ptIdInCtx >= 0 )
+                    M_postProcessMeasuresContextElectricPotential->replace( ptIdInCtx, ptCoord );
+            }
+        }
+    }
+    if ( M_postProcessMeasuresContextElectricPotential && this->postProcessMeasuresEvaluatorContext().has("electric-potential") )
+    {
+        auto evalAtNodes = evaluateFromContext( _context=*M_postProcessMeasuresContextElectricPotential,
+                                                _expr=idv(this->fieldElectricPotential()) );
+        for ( int ctxId=0;ctxId<M_postProcessMeasuresContextElectricPotential->nPoints();++ctxId )
+        {
+            if ( !this->postProcessMeasuresEvaluatorContext().has( "electric-potential", ctxId ) ) continue;
+            std::string ptNameExport = this->postProcessMeasuresEvaluatorContext().name( "electric-potential",ctxId );
+            this->postProcessMeasuresIO().setMeasure( ptNameExport, evalAtNodes( ctxId ) );
+            hasMeasure = true;
+        }
+    }
+
+    auto fieldTuple = hana::make_tuple( std::make_pair( "electric-potential",this->fieldElectricPotentialPtr() ),
+                                        std::make_pair( "electric-field",this->fieldElectricField() ),
+                                        std::make_pair( "current-density",this->fieldCurrentDensity() ) );
+
     for ( auto const& ppNorm : this->modelProperties().postProcess().measuresNorm( this->keyword() ) )
     {
         std::map<std::string,double> resPpNorms;
